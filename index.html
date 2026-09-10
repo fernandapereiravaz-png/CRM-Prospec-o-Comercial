@@ -300,8 +300,8 @@
       <option value="novo">Novo</option>
       <option value="contactado">Contactado</option>
       <option value="negociacao">Em negociação</option>
-      <option value="cliente">Cliente</option>
-      <option value="parado">Não avançar</option>
+      <option value="cliente">Fechado</option>
+      <option value="parado">Perdido</option>
     </select>
   </div>
 
@@ -344,8 +344,8 @@
           <option value="novo">Novo</option>
           <option value="contactado">Contactado</option>
           <option value="negociacao">Em negociação</option>
-          <option value="cliente">Cliente</option>
-          <option value="parado">Não avançar</option>
+          <option value="cliente">Fechado</option>
+          <option value="parado">Perdido</option>
         </select>
       </div>
     </div>
@@ -358,6 +358,19 @@
       <div class="field">
         <label>Email</label>
         <input type="text" id="f_email" placeholder="geral@empresa.pt">
+      </div>
+    </div>
+
+    <div class="row2" style="margin-top:-8px;">
+      <div class="field">
+        <select id="msgTemplate" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); font-size:13px;">
+          <option value="posreuniao">Mensagem: Pós-reunião</option>
+          <option value="followup">Mensagem: Follow-up</option>
+        </select>
+      </div>
+      <div class="field" style="display:flex; gap:8px;">
+        <button type="button" class="btn" id="btnSendWhats" style="flex:1; background:#25D366; color:#fff; border:none;">WhatsApp</button>
+        <button type="button" class="btn" id="btnSendEmail" style="flex:1;">Email</button>
       </div>
     </div>
 
@@ -541,7 +554,7 @@
   }
 
   function statusLabel(s){
-    return {novo:'Novo', contactado:'Contactado', negociacao:'Em negociação', cliente:'Cliente', parado:'Não avançar'}[s] || 'Novo';
+    return {novo:'Novo', contactado:'Contactado', negociacao:'Em negociação', cliente:'Fechado', parado:'Perdido'}[s] || 'Novo';
   }
 
   function renderStats(){
@@ -553,7 +566,7 @@
       <div class="stat"><b>${byStatus.novo||0}</b>Novos</div>
       <div class="stat"><b>${byStatus.contactado||0}</b>Contactados</div>
       <div class="stat"><b>${byStatus.negociacao||0}</b>Em negociação</div>
-      <div class="stat"><b>${byStatus.cliente||0}</b>Clientes</div>
+      <div class="stat"><b>${byStatus.cliente||0}</b>Fechados</div>
     `;
   }
 
@@ -715,6 +728,54 @@
     closeModal();
     showToast('Empresa eliminada');
   }
+
+  const MESSAGE_TEMPLATES = {
+    posreuniao: {
+      subject: 'Foi um prazer falar consigo',
+      body: (empresa) => `Obrigada pelo tempo que disponibilizou hoje. Foi um prazer conhecer um pouco mais sobre a ${empresa} e perceber como podemos ajudar a atrair mais clientes através das redes sociais e anúncios online.\n\nFico a aguardar o seu feedback sobre o que conversámos. Qualquer dúvida, estou disponível.\n\nCom os melhores cumprimentos,\nFernanda\nAgulha num Palheiro — Encontramos clientes para o seu negócio!`,
+      whats: (empresa) => `Olá! Obrigada pelo seu tempo hoje 😊 Foi um prazer falar sobre a ${empresa} e como podemos ajudar a trazer mais clientes através das redes sociais e anúncios online.\n\nFico a aguardar a sua opinião sobre o que falámos. Qualquer coisa, estou por aqui!\n\n— Fernanda, Agulha num Palheiro`
+    },
+    followup: {
+      subject: 'A pensar em si',
+      body: (empresa) => `Só para não perder o fio à conversa: ficou a pensar sobre a proposta que falámos para a ${empresa}? Se surgiu alguma dúvida, ou se quiser que ajuste algo, é só dizer.\n\nContinuo disponível para ajudar a ${empresa} a crescer online.\n\nUm abraço,\nFernanda\nAgulha num Palheiro`,
+      whats: (empresa) => `Olá! Só a dar um toque 👋 Ficou a pensar sobre a proposta da ${empresa}? Se tiver alguma dúvida ou quiser ajustar algo, diga-me.\n\n— Fernanda`
+    }
+  };
+
+  function extractPhone(contacto){
+    if(!contacto) return '';
+    const digits = contacto.replace(/[^\d]/g, '');
+    // remove leading country code duplication, keep last 9 digits as PT mobile/landline
+    const local = digits.slice(-9);
+    if(local.length !== 9) return '';
+    return '351' + local;
+  }
+
+  $('btnSendWhats').onclick = () => {
+    const empresa = $('f_name').value || 'a sua empresa';
+    const contacto = $('f_contacto').value;
+    const phone = extractPhone(contacto);
+    if(!phone){
+      showToast('Sem número de telemóvel válido no campo Contacto');
+      return;
+    }
+    const tpl = MESSAGE_TEMPLATES[$('msgTemplate').value];
+    const text = encodeURIComponent(tpl.whats(empresa));
+    window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+  };
+
+  $('btnSendEmail').onclick = () => {
+    const empresa = $('f_name').value || 'a sua empresa';
+    const email = $('f_email').value;
+    if(!email){
+      showToast('Sem email preenchido');
+      return;
+    }
+    const tpl = MESSAGE_TEMPLATES[$('msgTemplate').value];
+    const subject = encodeURIComponent(tpl.subject + ' — ' + empresa);
+    const body = encodeURIComponent(tpl.body(empresa));
+    window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
+  };
 
   $('btnNew').onclick = openNew;
   $('btnCancel').onclick = closeModal;
