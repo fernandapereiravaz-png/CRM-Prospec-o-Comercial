@@ -405,6 +405,7 @@
           <option value="bemvindo">7. Bem-vindo(a) / Fechado</option>
           <option value="semproblema">8. Sem problema (não interessado)</option>
           <option value="naoconsegui">9. Não consegui falar</option>
+          <option value="relatorio">10. Envio de relatório mensal</option>
         </select>
       </div>
       <div class="field" style="display:flex; gap:8px;">
@@ -495,6 +496,7 @@
       site: c.site, loja: c.loja, gmb: c.gmb, pontos: c.pontos, contacto: c.contacto,
       email: c.email, notas: c.notas, reuniao_data: c.reuniaoData, reuniao_link: c.reuniaoLink,
       chamada_status: c.chamadaStatus, proxima_chamada: c.proximaChamada, info_extra: c.infoExtra,
+      moloni_cliente_id: c.moloniClienteId,
       updated_at: c.updatedAt || Date.now()
     };
   }
@@ -505,6 +507,7 @@
       site: r.site, loja: r.loja, gmb: r.gmb, pontos: r.pontos, contacto: r.contacto,
       email: r.email, notas: r.notas, reuniaoData: r.reuniao_data, reuniaoLink: r.reuniao_link,
       chamadaStatus: r.chamada_status, proximaChamada: r.proxima_chamada, infoExtra: r.info_extra,
+      moloniClienteId: r.moloni_cliente_id,
       updatedAt: r.updated_at
     };
   }
@@ -758,6 +761,7 @@
       gmb: $('f_gmb').value.trim(),
       pontos: $('f_pontos').value.trim(),
       notas: $('f_notas').value.trim(),
+      moloniClienteId: (companies.find(x => x.id === id) || {}).moloniClienteId || null,
       updatedAt: Date.now()
     };
 
@@ -770,6 +774,42 @@
     render();
     closeModal();
     showToast('Empresa guardada');
+
+    // Se ficou "Fechado" e ainda não existe no Moloni, cria automaticamente
+    if(data.status === 'cliente' && !data.moloniClienteId){
+      try{
+        const res = await fetch(MOLONI_FUNCTION_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`
+          },
+          body: JSON.stringify({
+            action: 'create_client',
+            empresa: {
+              name: data.name,
+              vat: data.nif,
+              address: data.sede,
+              email: data.email
+            }
+          })
+        });
+        const result = await res.json();
+        if(result.ok && result.customer_id){
+          data.moloniClienteId = result.customer_id;
+          const idx2 = companies.findIndex(x => x.id === id);
+          companies[idx2] = data;
+          await persist();
+          showToast('Cliente criado no Moloni!');
+        } else {
+          showToast('Aviso: não foi possível criar no Moloni (' + (result.error || 'erro desconhecido') + ')');
+        }
+      }catch(e){
+        console.error(e);
+        showToast('Aviso: erro ao ligar ao Moloni');
+      }
+    }
   }
 
   async function deleteCompany(){
@@ -834,6 +874,11 @@
       subject: (empresa) => `Tentei contactá-lo(a) — ${empresa}`,
       body: (empresa) => `Tentei entrar em contacto consigo hoje mas não consegui falar. Chamo-me Fernanda, da Agulha num Palheiro, e gostaria de apresentar como podemos ajudar a ${empresa} a conseguir mais clientes através das redes sociais e anúncios online.\n\nQuando tiver disponibilidade, pode responder aqui ou ligar-me. Fico a aguardar!\n\nCom os melhores cumprimentos,\nFernanda`,
       whats: (empresa) => `Olá! Tentei ligar mas não consegui falar consigo 📞 Chamo-me Fernanda, da Agulha num Palheiro — ajudamos negócios como a ${empresa} a conseguir mais clientes online. Quando tiver um bocadinho, responda aqui ou ligue-me quando puder!\n\n— Fernanda`
+    },
+    relatorio: {
+      subject: (empresa) => `Relatório de resultados — ${empresa}`,
+      body: (empresa) => `Aqui fica o relatório com os resultados da ${empresa} deste período. Em anexo encontra os detalhes sobre o desempenho das campanhas e das redes sociais.\n\nQualquer dúvida sobre os números ou sugestão para o próximo período, fico disponível para conversar.\n\nCom os melhores cumprimentos,\nFernanda\nAgulha num Palheiro`,
+      whats: (empresa) => `Olá! Aqui fica o relatório de resultados da ${empresa} 📊 Em anexo os detalhes do desempenho das campanhas e redes sociais. Qualquer dúvida, estou por aqui!\n\n— Fernanda`
     }
   };
 
@@ -867,7 +912,10 @@
     window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
   };
 
-  $('btnSendEmail').onclick = () => {
+  const EDGE_FUNCTION_URL = 'https://yzjgxsvoqvgykhksmbah.supabase.co/functions/v1/Send-Email';
+  const MOLONI_FUNCTION_URL = 'https://yzjgxsvoqvgykhksmbah.supabase.co/functions/v1/Moloni';
+
+  $('btnSendEmail').onclick = async () => {
     const empresa = $('f_name').value || 'a sua empresa';
     const email = $('f_email').value;
     if(!email){
@@ -876,9 +924,33 @@
     }
     const tpl = MESSAGE_TEMPLATES[$('msgTemplate').value];
     const subjectBase = typeof tpl.subject === 'function' ? tpl.subject(empresa) : (tpl.subject + ' — ' + empresa);
-    const subject = encodeURIComponent(fillReuniao(subjectBase));
-    const body = encodeURIComponent(fillReuniao(tpl.body(empresa)));
-    window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
+    const subject = fillReuniao(subjectBase);
+    const body = fillReuniao(tpl.body(empresa));
+
+    $('btnSendEmail').disabled = true;
+    $('btnSendEmail').textContent = 'A enviar...';
+    try{
+      const res = await fetch(EDGE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify({ to: email, subject, body })
+      });
+      const data = await res.json();
+      if(res.ok && data.ok){
+        showToast('Email enviado com sucesso!');
+      } else {
+        showToast('Erro ao enviar: ' + (data.error || 'desconhecido'));
+      }
+    }catch(e){
+      showToast('Erro ao enviar email');
+      console.error(e);
+    }
+    $('btnSendEmail').disabled = false;
+    $('btnSendEmail').textContent = 'Email';
   };
 
   $('btnNew').onclick = openNew;
