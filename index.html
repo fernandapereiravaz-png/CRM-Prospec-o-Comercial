@@ -361,11 +361,30 @@
       </div>
     </div>
 
+    <div class="row2">
+      <div class="field">
+        <label>Data/hora da próxima reunião</label>
+        <input type="text" id="f_reuniao_data" placeholder="Ex: 15/09 às 15h00">
+      </div>
+      <div class="field">
+        <label>Link da reunião</label>
+        <input type="text" id="f_reuniao_link" placeholder="Ex: https://meet.google.com/...">
+      </div>
+    </div>
+
     <div class="row2" style="margin-top:-8px;">
       <div class="field">
         <select id="msgTemplate" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); font-size:13px;">
-          <option value="posreuniao">Mensagem: Pós-reunião</option>
-          <option value="followup">Mensagem: Follow-up</option>
+          <option value="primeirocontacto">1. Primeiro contacto</option>
+          <option value="confirmareuniao">2. Confirmação de reunião</option>
+          <option value="kickoff">2b. Marcação de kick-off</option>
+          <option value="posreuniao">3. Pós-reunião</option>
+          <option value="followup">4. Follow-up</option>
+          <option value="followupfinal">5. Follow-up final</option>
+          <option value="pedirdocumentos">6. Pedido de documentos</option>
+          <option value="bemvindo">7. Bem-vindo(a) / Fechado</option>
+          <option value="semproblema">8. Sem problema (não interessado)</option>
+          <option value="naoconsegui">9. Não consegui falar</option>
         </select>
       </div>
       <div class="field" style="display:flex; gap:8px;">
@@ -454,7 +473,8 @@
       id: c.id, name: c.name, setor: c.setor, nif: c.nif, sede: c.sede,
       tempo: c.tempo, status: c.status, insolvencia: c.insolvencia, redes: c.redes,
       site: c.site, loja: c.loja, gmb: c.gmb, pontos: c.pontos, contacto: c.contacto,
-      email: c.email, notas: c.notas, updated_at: c.updatedAt || Date.now()
+      email: c.email, notas: c.notas, reuniao_data: c.reuniaoData, reuniao_link: c.reuniaoLink,
+      updated_at: c.updatedAt || Date.now()
     };
   }
   function fromDb(r){
@@ -462,7 +482,8 @@
       id: r.id, name: r.name, setor: r.setor, nif: r.nif, sede: r.sede,
       tempo: r.tempo, status: r.status, insolvencia: r.insolvencia, redes: r.redes,
       site: r.site, loja: r.loja, gmb: r.gmb, pontos: r.pontos, contacto: r.contacto,
-      email: r.email, notas: r.notas, updatedAt: r.updated_at
+      email: r.email, notas: r.notas, reuniaoData: r.reuniao_data, reuniaoLink: r.reuniao_link,
+      updatedAt: r.updated_at
     };
   }
 
@@ -647,7 +668,7 @@
   function openNew(){
     $('modalTitle').textContent = 'Nova empresa';
     $('editId').value = '';
-    ['f_name','f_setor','f_nif','f_sede','f_contacto','f_email','f_tempo','f_insolvencia','f_redes','f_site','f_loja','f_gmb','f_pontos','f_notas'].forEach(id => $(id).value = '');
+    ['f_name','f_setor','f_nif','f_sede','f_contacto','f_email','f_reuniao_data','f_reuniao_link','f_tempo','f_insolvencia','f_redes','f_site','f_loja','f_gmb','f_pontos','f_notas'].forEach(id => $(id).value = '');
     $('f_status').value = 'novo';
     $('btnDelete').style.display = 'none';
     overlay.classList.add('open');
@@ -665,6 +686,8 @@
     $('f_status').value = c.status || 'novo';
     $('f_contacto').value = c.contacto || '';
     $('f_email').value = c.email || '';
+    $('f_reuniao_data').value = c.reuniaoData || '';
+    $('f_reuniao_link').value = c.reuniaoLink || '';
     $('f_tempo').value = c.tempo || '';
     $('f_insolvencia').value = c.insolvencia || '';
     $('f_redes').value = c.redes || '';
@@ -695,6 +718,8 @@
       status: $('f_status').value,
       contacto: $('f_contacto').value.trim(),
       email: $('f_email').value.trim(),
+      reuniaoData: $('f_reuniao_data').value.trim(),
+      reuniaoLink: $('f_reuniao_link').value.trim(),
       tempo: $('f_tempo').value.trim(),
       insolvencia: $('f_insolvencia').value.trim(),
       redes: $('f_redes').value.trim(),
@@ -730,6 +755,21 @@
   }
 
   const MESSAGE_TEMPLATES = {
+    primeirocontacto: {
+      subject: (empresa) => `Ideias para a ${empresa} atrair mais clientes online`,
+      body: (empresa) => `Chamo-me Fernanda, da Agulha num Palheiro — ajudamos negócios como a ${empresa} a conseguir mais clientes através das redes sociais e anúncios online.\n\nReparei no vosso trabalho e acredito que há oportunidades interessantes para explorar. Teria 15 minutos esta semana para uma conversa rápida, sem compromisso?\n\nFico ao dispor,\nFernanda`,
+      whats: (empresa) => `Olá! Chamo-me Fernanda, da Agulha num Palheiro — ajudamos negócios como a ${empresa} a conseguir mais clientes através das redes sociais e anúncios online.\n\nTeria 15 minutos esta semana para uma conversa rápida, sem compromisso?\n\n— Fernanda`
+    },
+    confirmareuniao: {
+      subject: (empresa) => `Reunião marcada — ${empresa}`,
+      body: (empresa) => `Confirmo a nossa reunião para [dia] às [hora]. Aqui fica o link para participar:\n\n[link da reunião]\n\nQualquer imprevisto, avise-me com antecedência. Até já!\n\nFernanda\nAgulha num Palheiro`,
+      whats: (empresa) => `Olá! Confirmo a nossa reunião para [dia] às [hora] 📅\n\nLink: [link da reunião]\n\nAté já! — Fernanda`
+    },
+    kickoff: {
+      subject: (empresa) => `Vamos começar! Reunião de kick-off — ${empresa}`,
+      body: (empresa) => `Agora que está tudo formalizado, vamos agendar a nossa reunião de kick-off para arrancarmos com o trabalho na ${empresa}.\n\nProponho [dia] às [hora] — fica bem? Aqui fica o link:\n\n[link da reunião]\n\nNesta reunião vamos alinhar objetivos, prazos e os primeiros passos. Até já!\n\nFernanda\nAgulha num Palheiro`,
+      whats: (empresa) => `Olá! Agora que está tudo formalizado, vamos marcar o kick-off para arrancarmos com o trabalho na ${empresa} 🚀\n\nProponho [dia] às [hora] — fica bem? Link: [link da reunião]\n\nAté já! — Fernanda`
+    },
     posreuniao: {
       subject: 'Foi um prazer falar consigo',
       body: (empresa) => `Obrigada pelo tempo que disponibilizou hoje. Foi um prazer conhecer um pouco mais sobre a ${empresa} e perceber como podemos ajudar a atrair mais clientes através das redes sociais e anúncios online.\n\nFico a aguardar o seu feedback sobre o que conversámos. Qualquer dúvida, estou disponível.\n\nCom os melhores cumprimentos,\nFernanda\nAgulha num Palheiro — Encontramos clientes para o seu negócio!`,
@@ -739,6 +779,31 @@
       subject: 'A pensar em si',
       body: (empresa) => `Só para não perder o fio à conversa: ficou a pensar sobre a proposta que falámos para a ${empresa}? Se surgiu alguma dúvida, ou se quiser que ajuste algo, é só dizer.\n\nContinuo disponível para ajudar a ${empresa} a crescer online.\n\nUm abraço,\nFernanda\nAgulha num Palheiro`,
       whats: (empresa) => `Olá! Só a dar um toque 👋 Ficou a pensar sobre a proposta da ${empresa}? Se tiver alguma dúvida ou quiser ajustar algo, diga-me.\n\n— Fernanda`
+    },
+    followupfinal: {
+      subject: 'Última tentativa',
+      body: (empresa) => `Não quero ser insistente, por isso esta é a minha última mensagem por agora. Se em algum momento quiser conversar sobre como atrair mais clientes online para a ${empresa}, estou aqui.\n\nUm abraço,\nFernanda`,
+      whats: (empresa) => `Olá! Não quero ser insistente, por isso é a minha última mensagem por agora 🙂 Se em algum momento quiser conversar sobre como atrair mais clientes online para a ${empresa}, estou aqui.\n\n— Fernanda`
+    },
+    pedirdocumentos: {
+      subject: 'Próximos passos',
+      body: (empresa) => `Para adiantar o processo, caso decida avançar, deixo já aqui os dados que vou precisar da ${empresa}:\n\n- NIF\n- Morada da sede\n- [outros dados a confirmar]\n\nAssim, assim que me confirmar, é só prepararmos o contrato sem demoras. Sem qualquer pressão — fico a aguardar a sua decisão com calma.\n\nCom os melhores cumprimentos,\nFernanda\nAgulha num Palheiro`,
+      whats: (empresa) => `Olá! Para adiantar o processo, caso decida avançar, deixo já aqui os dados que vou precisar da ${empresa}: NIF e morada da sede 📋 Assim, quando confirmar, seguimos logo para o contrato. Sem pressão, fico a aguardar! 😊\n\n— Fernanda`
+    },
+    bemvindo: {
+      subject: 'Bem-vindo(a)! 🎉',
+      body: (empresa) => `Que bom termos fechado esta parceria! Obrigada pela confiança na Agulha num Palheiro para ajudar a ${empresa} a crescer online.\n\nEm breve entro em contacto com os próximos passos.\n\nCom entusiasmo,\nFernanda`,
+      whats: (empresa) => `Que bom termos fechado esta parceria! 🎉 Obrigada pela confiança na Agulha num Palheiro para ajudar a ${empresa} a crescer online. Em breve sigo com os próximos passos!\n\n— Fernanda`
+    },
+    semproblema: {
+      subject: 'Sem problema!',
+      body: (empresa) => `Sem problema, obrigada por avisar. Fico com a porta aberta caso mude de ideias no futuro — não vou insistir.\n\nTudo de bom para a ${empresa},\nFernanda`,
+      whats: (empresa) => `Sem problema, obrigada por avisar 🙂 Fico com a porta aberta caso mude de ideias no futuro. Tudo de bom para a ${empresa}!\n\n— Fernanda`
+    },
+    naoconsegui: {
+      subject: (empresa) => `Tentei contactá-lo(a) — ${empresa}`,
+      body: (empresa) => `Tentei entrar em contacto consigo hoje mas não consegui falar. Chamo-me Fernanda, da Agulha num Palheiro, e gostaria de apresentar como podemos ajudar a ${empresa} a conseguir mais clientes através das redes sociais e anúncios online.\n\nQuando tiver disponibilidade, pode responder aqui ou ligar-me. Fico a aguardar!\n\nCom os melhores cumprimentos,\nFernanda`,
+      whats: (empresa) => `Olá! Tentei ligar mas não consegui falar consigo 📞 Chamo-me Fernanda, da Agulha num Palheiro — ajudamos negócios como a ${empresa} a conseguir mais clientes online. Quando tiver um bocadinho, responda aqui ou ligue-me quando puder!\n\n— Fernanda`
     }
   };
 
@@ -751,6 +816,14 @@
     return '351' + local;
   }
 
+  function fillReuniao(text){
+    const data = $('f_reuniao_data').value.trim();
+    const link = $('f_reuniao_link').value.trim();
+    if(data) text = text.replace(/\[dia\] às \[hora\]/g, data).replace(/\[dia\]/g, data).replace(/\[hora\]/g, '');
+    if(link) text = text.replace(/\[link da reunião\]/g, link);
+    return text;
+  }
+
   $('btnSendWhats').onclick = () => {
     const empresa = $('f_name').value || 'a sua empresa';
     const contacto = $('f_contacto').value;
@@ -760,7 +833,7 @@
       return;
     }
     const tpl = MESSAGE_TEMPLATES[$('msgTemplate').value];
-    const text = encodeURIComponent(tpl.whats(empresa));
+    const text = encodeURIComponent(fillReuniao(tpl.whats(empresa)));
     window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
   };
 
@@ -772,8 +845,9 @@
       return;
     }
     const tpl = MESSAGE_TEMPLATES[$('msgTemplate').value];
-    const subject = encodeURIComponent(tpl.subject + ' — ' + empresa);
-    const body = encodeURIComponent(tpl.body(empresa));
+    const subjectBase = typeof tpl.subject === 'function' ? tpl.subject(empresa) : (tpl.subject + ' — ' + empresa);
+    const subject = encodeURIComponent(fillReuniao(subjectBase));
+    const body = encodeURIComponent(fillReuniao(tpl.body(empresa)));
     window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
   };
 
