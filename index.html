@@ -387,6 +387,11 @@
       </div>
     </div>
 
+    <div class="field" style="margin-top:4px;">
+      <label>Informação extra</label>
+      <input type="text" id="f_info_extra" placeholder="Qualquer outra informação rápida...">
+    </div>
+
     <div class="row2" style="margin-top:-8px;">
       <div class="field">
         <select id="msgTemplate" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); font-size:13px;">
@@ -489,7 +494,7 @@
       tempo: c.tempo, status: c.status, insolvencia: c.insolvencia, redes: c.redes,
       site: c.site, loja: c.loja, gmb: c.gmb, pontos: c.pontos, contacto: c.contacto,
       email: c.email, notas: c.notas, reuniao_data: c.reuniaoData, reuniao_link: c.reuniaoLink,
-      chamada_status: c.chamadaStatus, proxima_chamada: c.proximaChamada,
+      chamada_status: c.chamadaStatus, proxima_chamada: c.proximaChamada, info_extra: c.infoExtra,
       updated_at: c.updatedAt || Date.now()
     };
   }
@@ -499,7 +504,7 @@
       tempo: r.tempo, status: r.status, insolvencia: r.insolvencia, redes: r.redes,
       site: r.site, loja: r.loja, gmb: r.gmb, pontos: r.pontos, contacto: r.contacto,
       email: r.email, notas: r.notas, reuniaoData: r.reuniao_data, reuniaoLink: r.reuniao_link,
-      chamadaStatus: r.chamada_status, proximaChamada: r.proxima_chamada,
+      chamadaStatus: r.chamada_status, proximaChamada: r.proxima_chamada, infoExtra: r.info_extra,
       updatedAt: r.updated_at
     };
   }
@@ -686,7 +691,7 @@
   function openNew(){
     $('modalTitle').textContent = 'Nova empresa';
     $('editId').value = '';
-    ['f_name','f_setor','f_nif','f_sede','f_contacto','f_email','f_reuniao_data','f_reuniao_link','f_proxima_chamada','f_tempo','f_insolvencia','f_redes','f_site','f_loja','f_gmb','f_pontos','f_notas'].forEach(id => $(id).value = '');
+    ['f_name','f_setor','f_nif','f_sede','f_contacto','f_email','f_reuniao_data','f_reuniao_link','f_proxima_chamada','f_info_extra','f_tempo','f_insolvencia','f_redes','f_site','f_loja','f_gmb','f_pontos','f_notas'].forEach(id => $(id).value = '');
     $('f_chamada_status').value = '';
     $('f_status').value = 'novo';
     $('btnDelete').style.display = 'none';
@@ -709,6 +714,7 @@
     $('f_reuniao_link').value = c.reuniaoLink || '';
     $('f_chamada_status').value = c.chamadaStatus || '';
     $('f_proxima_chamada').value = c.proximaChamada || '';
+    $('f_info_extra').value = c.infoExtra || '';
     $('f_tempo').value = c.tempo || '';
     $('f_insolvencia').value = c.insolvencia || '';
     $('f_redes').value = c.redes || '';
@@ -743,6 +749,7 @@
       reuniaoLink: $('f_reuniao_link').value.trim(),
       chamadaStatus: $('f_chamada_status').value,
       proximaChamada: $('f_proxima_chamada').value.trim(),
+      infoExtra: $('f_info_extra').value.trim(),
       tempo: $('f_tempo').value.trim(),
       insolvencia: $('f_insolvencia').value.trim(),
       redes: $('f_redes').value.trim(),
@@ -883,4 +890,46 @@
   $('search').addEventListener('keydown', (e) => { if(e.key === 'Enter'){ currentPage = 1; render(); } });
   $('filterStatus').onchange = () => { currentPage = 1; render(); };
   $('filterSetor').onchange = () => { currentPage = 1; render(); };
-  overlay.onclick = (e) => { if(e.target === overlay) closeModal()
+  overlay.onclick = (e) => { if(e.target === overlay) closeModal(); };
+
+  $('btnExport').onclick = () => {
+    const blob = new Blob([JSON.stringify(companies, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'crm-prospecao-backup.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Ficheiro exportado');
+  };
+
+  $('btnImport').onclick = () => $('fileImport').click();
+  $('fileImport').onchange = async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    try{
+      const text = await file.text();
+      const imported = JSON.parse(text);
+      if(!Array.isArray(imported)) throw new Error('formato inválido');
+      let added = 0, updated = 0;
+      imported.forEach(newCo => {
+        const idx = companies.findIndex(c => c.id === newCo.id);
+        if(idx >= 0){ companies[idx] = newCo; updated++; }
+        else { companies.push(newCo); added++; }
+      });
+      await persist();
+      populateSectorFilter();
+      currentPage = 1;
+      render();
+      showToast(`Importado: ${added} novas, ${updated} atualizadas`);
+    }catch(err){
+      showToast('Erro ao importar ficheiro');
+    }
+    e.target.value = '';
+  };
+
+  loadCompanies();
+</script>
+
+</body>
+</html>
